@@ -1,0 +1,30 @@
+services:
+  nginx:
+    image: nginx:latest
+    container_name: novaapp-2api-nginx
+    restart: always
+    ports:
+      - "${NGINX_PORT:-8088}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    networks:
+      - novaapp-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novaapp-2api-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - novaapp-net
+
+networks:
+  novaapp-net:
+    driver: bridge
