@@ -1,0 +1,1025 @@
+项目 'nova-2api' 的结构树:
+📂 nova-2api/
+    📄 .env
+    📄 Dockerfile
+    📄 docker-compose.yml
+    📄 main.py
+    📄 nginx.conf
+    📄 requirements.txt
+    📂 app/
+        📂 core/
+            📄 __init__.py
+            📄 config.py
+        📂 providers/
+            📄 __init__.py
+            📄 base_provider.py
+            📄 novaapp_provider.py
+        📂 utils/
+            📄 sse_utils.py
+    📂 static/
+        📄 index.html
+        📄 script.js
+        📄 style.css
+================================================================================
+
+--- 文件路径: .env ---
+
+# [自动填充] novaapp-2api 生产环境配置
+# 该文件由首席执行官模式根据您的抓包数据自动生成。
+
+# --- 安全配置 ---
+# 用于保护您的 API 服务的访问密钥，建议修改为您自己的复杂密钥。
+API_MASTER_KEY=1
+
+# --- 部署配置 ---
+# Nginx 对外暴露的端口
+NGINX_PORT=8088
+
+# --- NovaApp.ai 凭证 (已自动提取最新版本) ---
+# 格式: "x_token|x_user_id"
+# 您可以添加 NOVAAPP_CREDENTIAL_2, NOVAAPP_CREDENTIAL_3 等来启用更多账号轮询。
+NOVAAPP_CREDENTIAL_1="eyJhbGciOiJSUzI1NiIsImtpZCI6IjlkMjEzMGZlZjAyNTg3ZmQ4ODYxODg2OTgyMjczNGVmNzZhMTExNjUiLCJ0eXAiOiJKV1QifQ.eyJuYW1lIjoic3VtbWVyIiwicGljdHVyZSI6Imh0dHBzOi8vZmlyZWJhc2VzdG9yYWdlLmdvb2dsZWFwaXMuY29tL3YwL2IvY2hhdC1haS1wcm9kLmFwcHNwb3QuY29tL28vdXNlci1hdmF0YXJzJTJGMUNYQlZwZmdrRVk0RjFidENNNFB5QTdDV1ZwMiUyRjBiOWE4OWRkLTMwZTktNGY3Zi04ZTJkLTZjOGU1ZDBiYWU3My5qcGc_YWx0PW1lZGlhJnRva2VuPTVjYWVmNWZhLTQ5OTEtNGIyMi05ODNkLTY2YTNiMmZhODY4OCIsImlzcyI6Imh0dHBzOi8vc2VjdXJldG9rZW4uZ29vZ2xlLmNvbS9jaGF0LWFpLXByb2QiLCJhdWQiOiJjaGF0LWFpLXByb2QiLCJhdXRoX3RpbWUiOjE3NjExMjgzNjMsInVzZXJfaWQiOiIxQ1hCVnBmZ2tFWTRGMWJ0Q000UHlBN0NXVnAyIiwic3ViIjoiMUNYQlZwZmdrRVk0RjFidENNNFB5QTdDV1ZwMiIsImlhdCI6MTc2MTEzNDk2NiwiZXhwIjoxNzYxMTM4NTY2LCJlbWFpbCI6ImRhdmlkYnJvd25AMTYzLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJmaXJlYmFzZSI6eyJpZGVudGl0aWVzIjp7ImVtYWlsIjpbImRhdmlkYnJvd25AMTYzLmNvbSJdfSwic2lnbl9pbl9wcm92aWRlciI6InBhc3N3b3JkIn19.JiDm9qqWkK0EKzykiHEQtO_r2UJSXBka1QvwdyxyP6i7zjZYPo4O2-jERikhFBPie4YwIJ3Hn_PXQcL_b2VBE5DlTpp2NjrTsV2k4qyMz-1lzHxZpe8qcRxKiaO7pmqQly9Lh5YhYZKR4d4fubJlSsup88HIw7ooINJgQRjdeCAHbQZ4oFn95kKDq0kDIwifoPSU5rOWkoUsa6epZ3nxVZjUqICOYCnSB9u5RdwzV1NqBJ7tyJv3u1cHB6Nsx4Hsmy8gYZ-Ip3wVob9sBEVhDroJjNduj7rB7ZYnd1mfEUF0gJfm1echfUaUGPL2RrcW0eiT1KvorRkH6W802EyUYg|1CXBVpfgkEY4F1btCM4PyA7CWVp2"
+
+--- 文件路径: Dockerfile ---
+
+FROM python:3.10-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+RUN useradd --create-home appuser && \
+    chown -R appuser:appuser /app
+USER appuser
+
+EXPOSE 8000
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
+
+--- 文件路径: docker-compose.yml ---
+
+services:
+  nginx:
+    image: nginx:latest
+    container_name: novaapp-2api-nginx
+    restart: always
+    ports:
+      - "${NGINX_PORT:-8088}:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app
+    networks:
+      - novaapp-net
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: novaapp-2api-app
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    networks:
+      - novaapp-net
+
+networks:
+  novaapp-net:
+    driver: bridge
+
+--- 文件路径: main.py ---
+
+import logging
+import json
+import uuid
+import time
+from contextlib import asynccontextmanager
+from typing import Optional
+
+from fastapi import FastAPI, Request, HTTPException, Depends, Header
+from fastapi.responses import JSONResponse, StreamingResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from loguru import logger
+
+from app.core.config import settings
+from app.providers.novaapp_provider import NovaAppProvider
+
+# --- 日志配置 ---
+logger.add(
+    "logs/app.log",
+    rotation="10 MB",
+    retention="7 days",
+    level="INFO",
+    format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+)
+
+# --- 全局 Provider 实例 ---
+provider = NovaAppProvider()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info(f"应用启动中... {settings.APP_NAME} v{settings.APP_VERSION}")
+    logger.info("服务已进入 'Cloudscraper & Credential Pool' 模式。")
+    logger.info(f"API 服务将在 http://localhost:{settings.NGINX_PORT} 上可用")
+    logger.info(f"Web UI 测试界面已启用，请访问 http://localhost:{settings.NGINX_PORT}/")
+    yield
+    logger.info("应用关闭。")
+
+app = FastAPI(
+    title=settings.APP_NAME,
+    version=settings.APP_VERSION,
+    description=settings.DESCRIPTION,
+    lifespan=lifespan
+)
+
+# --- 挂载静态文件目录 ---
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# --- 安全依赖 ---
+async def verify_api_key(authorization: Optional[str] = Header(None)):
+    if settings.API_MASTER_KEY and settings.API_MASTER_KEY != "1":
+        if not authorization or "bearer" not in authorization.lower():
+            raise HTTPException(status_code=401, detail="需要 Bearer Token 认证。")
+        token = authorization.split(" ")[-1]
+        if token != settings.API_MASTER_KEY:
+            raise HTTPException(status_code=403, detail="无效的 API Key。")
+
+# --- API 路由 ---
+@app.post("/v1/chat/completions", dependencies=[Depends(verify_api_key)])
+async def chat_completions(request: Request):
+    try:
+        request_data = await request.json()
+        logger.info(f"收到客户端请求 /v1/chat/completions:\n{json.dumps(request_data, indent=2, ensure_ascii=False)}")
+        
+        model_name = request_data.get("model", settings.DEFAULT_MODEL)
+        if model_name == "nova-dalle3":
+            messages = request_data.get("messages", [])
+            last_user_message = next((m['content'] for m in reversed(messages) if m.get('role') == 'user'), None)
+            if not last_user_message:
+                raise HTTPException(status_code=400, detail="在 'messages' 中未找到用户消息。")
+
+            image_request_data = {
+                "prompt": last_user_message,
+                "model": model_name,
+                "n": 1,
+                "size": "1:1",
+                "response_format": "url"
+            }
+            image_result_dict = await provider.generate_image(image_request_data)
+            image_url = image_result_dict.get("data", [{}])[0].get("url")
+            if not image_url:
+                raise HTTPException(status_code=502, detail="从上游服务生成图像失败。")
+
+            response_content = f"![{last_user_message[:30]}]({image_url})"
+            chat_response = {
+                "id": f"chatcmpl-{uuid.uuid4()}", "object": "chat.completion", "created": int(time.time()),
+                "model": model_name,
+                "choices": [{"index": 0, "message": {"role": "assistant", "content": response_content}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+            }
+            return JSONResponse(content=chat_response)
+        else:
+            return await provider.chat_completion(request_data)
+
+    except Exception as e:
+        logger.error(f"处理聊天请求时发生顶层错误: {e}", exc_info=True)
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
+
+@app.post("/v1/images/generations", dependencies=[Depends(verify_api_key)])
+async def image_generations(request: Request):
+    try:
+        request_data = await request.json()
+        logger.info(f"收到客户端请求 /v1/images/generations:\n{json.dumps(request_data, indent=2, ensure_ascii=False)}")
+        image_result_dict = await provider.generate_image(request_data)
+        return JSONResponse(content=image_result_dict)
+    except Exception as e:
+        logger.error(f"处理图像生成请求时发生顶层错误: {e}", exc_info=True)
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=f"内部服务器错误: {str(e)}")
+
+@app.get("/v1/models", dependencies=[Depends(verify_api_key)], response_class=JSONResponse)
+async def list_models():
+    return await provider.get_models()
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+async def serve_ui():
+    try:
+        with open("static/index.html", "r", encoding="utf-8") as f:
+            return HTMLResponse(content=f.read())
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="UI 文件 (static/index.html) 未找到。")
+
+--- 文件路径: nginx.conf ---
+
+worker_processes auto;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    upstream novaapp_backend {
+        ip_hash;
+        server app:8000;
+    }
+
+    server {
+        listen 80;
+        server_name localhost;
+
+        location / {
+            proxy_pass http://novaapp_backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        
+            # --- 核心修改点：增加超时设置 ---
+            proxy_connect_timeout 300s;
+            proxy_send_timeout 300s;
+            proxy_read_timeout 300s;
+
+            proxy_buffering off;
+            proxy_cache off;
+            proxy_set_header Connection '';
+            proxy_http_version 1.1;
+            chunked_transfer_encoding off;
+        }
+    }
+}
+
+--- 文件路径: requirements.txt ---
+
+fastapi
+uvicorn[standard]
+pydantic-settings
+python-dotenv
+cloudscraper
+loguru
+httpx
+
+--- 文件路径: app\core\__init__.py ---
+
+
+
+--- 文件路径: app\core\config.py ---
+
+import os
+import logging
+import uuid
+from pydantic import BaseModel
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import List, Optional, Dict
+
+logger = logging.getLogger(__name__)
+
+class Credential(BaseModel):
+    x_token: str
+    x_user_id: str
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding='utf-8',
+        extra="ignore"
+    )
+
+    APP_NAME: str = "novaapp-2api"
+    APP_VERSION: str = "2.0.0"
+    DESCRIPTION: str = "一个将 NovaApp.ai 转换为兼容 OpenAI 格式 API 的高性能代理，支持多账号轮询、文本与图像生成。"
+
+    API_MASTER_KEY: Optional[str] = None
+    NGINX_PORT: int = 8088
+    API_REQUEST_TIMEOUT: int = 300
+    POLLING_INTERVAL: int = 2
+    POLLING_TIMEOUT: int = 240
+
+    CREDENTIALS: List[Credential] = []
+
+    CHAT_IMAGE_URL: str = "https://api.novaapp.ai/api/chat/image"
+    IMAGE_GENERATOR_URL: str = "https://api.novaapp.ai/api/image-generator"
+    IMAGE_BASE_URL: str = "https://firebasestorage.googleapis.com/v0/b/chat-ai-prod.appspot.com/o/"
+
+    MODEL_MAPPING: Dict[str, int] = {
+        "gpt-4o-mini": 0,
+        "gpt-4o": 11,
+        "gpt-5": 2,
+        "gemini-flash": 10,
+        "claude-3.5-sonnet": 15,
+        "web-search": 14,
+        "nova-dalle3": 4,
+    }
+    DEFAULT_MODEL: str = "gpt-4o-mini"
+
+    def __init__(self, **values):
+        super().__init__(**values)
+        i = 1
+        while True:
+            cred_str = os.getenv(f"NOVAAPP_CREDENTIAL_{i}")
+            if cred_str:
+                try:
+                    x_token, x_user_id = cred_str.split('|')
+                    self.CREDENTIALS.append(Credential(x_token=x_token.strip(), x_user_id=x_user_id.strip()))
+                except ValueError:
+                    logger.warning(f"凭证格式错误 NOVAAPP_CREDENTIAL_{i}，应为 'x_token|x_user_id'。")
+                i += 1
+            else:
+                break
+    
+        if not self.CREDENTIALS:
+            raise ValueError("必须在 .env 文件中至少配置一个有效的 NOVAAPP_CREDENTIAL_1")
+
+settings = Settings()
+
+--- 文件路径: app\providers\__init__.py ---
+
+
+
+--- 文件路径: app\providers\base_provider.py ---
+
+# /app/providers/base_provider.py
+from abc import ABC, abstractmethod
+from typing import Dict, Any
+from fastapi.responses import StreamingResponse, JSONResponse
+
+class BaseProvider(ABC):
+    @abstractmethod
+    async def chat_completion(self, request_data: Dict[str, Any]) -> StreamingResponse:
+        pass
+
+    @abstractmethod
+    async def get_models(self) -> JSONResponse:
+        pass
+
+
+--- 文件路径: app\providers\novaapp_provider.py ---
+
+import json
+import time
+import uuid
+import threading
+import asyncio
+import base64
+from typing import Dict, Any, AsyncGenerator, Tuple, List
+from urllib.parse import quote
+
+import cloudscraper
+import httpx
+from fastapi import HTTPException
+from fastapi.responses import StreamingResponse, JSONResponse
+from loguru import logger
+
+from app.core.config import settings, Credential
+from app.utils.sse_utils import create_sse_data, create_chat_completion_chunk, DONE_CHUNK
+
+# 定义一个通用的 User-Agent，模拟真实浏览器
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"
+
+class NovaAppProvider:
+    def __init__(self):
+        self.scraper = cloudscraper.create_scraper()
+        self.cred_manager = CredentialManager(settings.CREDENTIALS)
+        # 创建一个可复用的 httpx 客户端实例
+        self.http_client = httpx.AsyncClient()
+
+    async def chat_completion(self, request_data: Dict[str, Any]) -> StreamingResponse:
+        
+        async def stream_generator() -> AsyncGenerator[bytes, None]:
+            request_id = f"chatcmpl-{uuid.uuid4()}"
+            model_name = request_data.get("model", settings.DEFAULT_MODEL)
+            
+            try:
+                credential = self.cred_manager.get_credential()
+                payload, model_id = self._prepare_chat_payload(request_data, model_name)
+                headers = self._prepare_chat_headers(credential, model_id)
+
+                logger.info(f"向上游发送聊天请求, 模型: {model_name} (ID: {payload['model']})")
+                
+                response = self.scraper.post(
+                    "https://api.novaapp.ai/api/chat",
+                    headers=headers,
+                    json=payload,
+                    stream=True,
+                    timeout=settings.API_REQUEST_TIMEOUT
+                )
+                
+                logger.info(f"上游响应状态码: {response.status_code}")
+                response.raise_for_status()
+
+                for line in response.iter_lines():
+                    if line.startswith(b"data:"):
+                        content = line[len(b"data:"):].strip()
+                        if content == b"[DONE]":
+                            break
+                        try:
+                            data = json.loads(content)
+                            delta_content = None
+                            if "choices" in data:
+                                choice = data.get("choices", [{}])[0]
+                                if "delta" in choice:
+                                    delta_content = choice.get("delta", {}).get("content")
+                            
+                            if delta_content is not None:
+                                chunk = create_chat_completion_chunk(request_id, model_name, delta_content)
+                                yield create_sse_data(chunk)
+                        except (json.JSONDecodeError, IndexError):
+                            if content:
+                                logger.warning(f"无法解析 SSE 数据块: {content}")
+                            continue
+            
+                final_chunk = create_chat_completion_chunk(request_id, model_name, "", "stop")
+                yield create_sse_data(final_chunk)
+                yield DONE_CHUNK
+
+            except Exception as e:
+                logger.error(f"处理流时发生错误: {e}", exc_info=True)
+                error_message = f"内部服务器错误: {str(e)}"
+                error_chunk = create_chat_completion_chunk(request_id, model_name, error_message, "stop")
+                yield create_sse_data(error_chunk)
+                yield DONE_CHUNK
+
+        return StreamingResponse(stream_generator(), media_type="text/event-stream")
+
+    async def generate_image(self, request_data: Dict[str, Any]) -> Dict[str, Any]:
+        prompt = request_data.get("prompt")
+        if not prompt:
+            raise HTTPException(status_code=400, detail="参数 'prompt' 不能为空。")
+
+        model_name = request_data.get("model", "nova-dalle3")
+        n = request_data.get("n", 1)
+
+        try:
+            initial_payload = {"messages": [{"role": "user", "content": prompt}]}
+            model_id = settings.MODEL_MAPPING[model_name]
+            credential = self.cred_manager.get_credential()
+            headers = self._prepare_image_submit_headers(credential, model_id)
+            
+            logger.info(f"向上游提交图像生成任务, Prompt: '{prompt[:50]}...'")
+            response = self.scraper.post(settings.CHAT_IMAGE_URL, headers=headers, json=initial_payload)
+            response.raise_for_status()
+            initial_data = response.json()
+
+            image_tasks = initial_data.get("data", {}).get("images", [])
+            if not image_tasks:
+                raise Exception("上游 API 未返回图像任务。")
+
+            polling_tasks = []
+            for task in image_tasks[:n]:
+                polling_tasks.append(self._poll_single_image(task, credential))
+            
+            logger.info(f"开始并发轮询 {len(polling_tasks)} 个图像任务...")
+            final_urls = await asyncio.gather(*polling_tasks)
+
+            logger.info(f"开始并发下载 {len(final_urls)} 张图片并转换为 Base64...")
+            b64_tasks = [self._url_to_b64(url, credential) for url in final_urls]
+            b64_results = await asyncio.gather(*b64_tasks)
+            output_data = [{"b64_json": b64} for b64 in b64_results]
+            logger.info("图片 Base64 转换完成，返回给客户端。")
+
+            return {"created": int(time.time()), "data": output_data}
+
+        except Exception as e:
+            logger.error(f"图像生成流程失败: {e}", exc_info=True)
+            raise HTTPException(status_code=502, detail=f"上游服务错误: {str(e)}")
+
+    async def _poll_single_image(self, image_task: Dict[str, Any], credential: Credential) -> str:
+        url = image_task.get("url")
+        prompt = image_task.get("prompt")
+        if not url or not prompt:
+            raise ValueError("无效的图像任务数据。")
+
+        payload = {"prompt": prompt, "url": url}
+        headers = self._prepare_image_poll_headers(credential)
+        
+        start_time = time.time()
+        while time.time() - start_time < settings.POLLING_TIMEOUT:
+            try:
+                response = self.scraper.post(settings.IMAGE_GENERATOR_URL, headers=headers, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                if data.get("isSuccess"):
+                    relative_path = data["url"]
+                    # 拼接元数据 URL，用于获取 downloadTokens
+                    metadata_url = f"{settings.IMAGE_BASE_URL}{quote(relative_path, safe='')}"
+                    logger.success(f"任务 {url} 成功，获取到元数据 URL: {metadata_url}")
+                    return metadata_url
+            except Exception as e:
+                logger.warning(f"轮询任务 {url} 时出错: {e}")
+            
+            await asyncio.sleep(settings.POLLING_INTERVAL)
+        
+        raise Exception(f"轮询任务 {url} 超时。")
+
+    async def _url_to_b64(self, metadata_url: str, credential: Credential) -> str:
+        # 步骤1: 访问元数据 URL 获取 downloadTokens
+        headers = {
+            "Authorization": f"Firebase {credential.x_token}",
+            "Origin": "https://chat.novaapp.ai",
+            "Referer": "https://chat.novaapp.ai/",
+            "User-Agent": USER_AGENT,
+        }
+        logger.info(f"正在从 {metadata_url} 获取下载令牌...")
+        meta_response = await self.http_client.get(metadata_url, headers=headers)
+        meta_response.raise_for_status()
+        meta_data = meta_response.json()
+        token = meta_data.get("downloadTokens")
+        if not token:
+            raise ValueError("无法从元数据中提取 downloadTokens。")
+        logger.success(f"成功获取下载令牌: {token}")
+
+        # 步骤2: 拼接最终的下载 URL 并下载图片
+        final_download_url = f"{metadata_url}?alt=media&token={token}"
+        logger.info(f"正在从最终 URL 下载图片: {final_download_url}")
+        image_response = await self.http_client.get(final_download_url, headers=headers)
+        image_response.raise_for_status()
+        
+        return base64.b64encode(image_response.content).decode('utf-8')
+
+    def _prepare_chat_headers(self, credential: Credential, model_id: int) -> Dict[str, str]:
+        return {
+            "Accept": "text/event-stream",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Content-Type": "application/json",
+            "Origin": "https://chat.novaapp.ai",
+            "Referer": "https://chat.novaapp.ai/",
+            "User-Agent": USER_AGENT,
+            "sec-ch-ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "x_token": credential.x_token,
+            "x_user_id": credential.x_user_id,
+            "x_platform": "web",
+            "x_stream": "true",
+            "x_pr": "true",
+            "x_version": "2",
+            "x_model": str(model_id),
+        }
+
+    def _prepare_image_submit_headers(self, credential: Credential, model_id: int) -> Dict[str, str]:
+        return {
+            "Accept": "*/*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Content-Type": "application/json",
+            "Origin": "https://chat.novaapp.ai",
+            "Referer": "https://chat.novaapp.ai/",
+            "User-Agent": USER_AGENT,
+            "sec-ch-ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "x_token": credential.x_token,
+            "x_user_id": credential.x_user_id,
+            "x_platform": "web",
+            "x_stream": "false",
+            "x_pr": "true",
+            "x_model": str(model_id),
+        }
+
+    def _prepare_image_poll_headers(self, credential: Credential) -> Dict[str, str]:
+        return {
+            "Accept": "*/*",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+            "Content-Type": "application/json",
+            "Origin": "https://chat.novaapp.ai",
+            "Referer": "https://chat.novaapp.ai/",
+            "User-Agent": USER_AGENT,
+            "sec-ch-ua": '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-site",
+            "x_token": credential.x_token,
+            "x_user_id": credential.x_user_id,
+            "x_platform": "web",
+            "x_pr": "true",
+            "x_source": "2",
+        }
+
+    def _prepare_chat_payload(self, request_data: Dict[str, Any], model_name: str) -> Tuple[Dict[str, Any], int]:
+        model_id = settings.MODEL_MAPPING.get(model_name, settings.MODEL_MAPPING[settings.DEFAULT_MODEL])
+        
+        if 'stream_options' in request_data:
+            del request_data['stream_options']
+
+        payload = {
+            "messages": request_data.get("messages", []),
+            "model": model_id,
+        }
+        return payload, model_id
+
+    async def get_models(self) -> JSONResponse:
+        return JSONResponse(content={
+            "object": "list",
+            "data": [{"id": name, "object": "model", "created": int(time.time()), "owned_by": "lzA6"} for name in settings.MODEL_MAPPING.keys()]
+        })
+
+class CredentialManager:
+    def __init__(self, credentials: list[Credential]):
+        if not credentials:
+            raise ValueError("凭证列表不能为空。")
+        self.credentials = credentials
+        self.lock = threading.Lock()
+        self.current_index = 0
+
+    def get_credential(self) -> Credential:
+        with self.lock:
+            cred = self.credentials[self.current_index]
+            self.current_index = (self.current_index + 1) % len(self.credentials)
+            logger.info(f"使用凭证索引: {self.current_index}")
+            return cred
+
+--- 文件路径: app\utils\sse_utils.py ---
+
+import json
+import time
+from typing import Dict, Any, Optional
+
+DONE_CHUNK = b"data: [DONE]\n\n"
+
+def create_sse_data(data: Dict[str, Any]) -> bytes:
+    return f"data: {json.dumps(data)}\n\n".encode('utf-8')
+
+def create_chat_completion_chunk(
+    request_id: str,
+    model: str,
+    content: str,
+    finish_reason: Optional[str] = None
+) -> Dict[str, Any]:
+    return {
+        "id": request_id,
+        "object": "chat.completion.chunk",
+        "created": int(time.time()),
+        "model": model,
+        "choices": [
+            {
+                "index": 0,
+                "delta": {"content": content},
+                "finish_reason": finish_reason
+            }
+        ]
+    }
+
+--- 文件路径: static\index.html ---
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NovaApp-2API 图像生成面板</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <div class="header">
+                <h2>NovaApp-2API</h2>
+                <p>v2.0.0 - 图像生成</p>
+            </div>
+
+            <div class="form-group">
+                <label for="api-key">API Key</label>
+                <input type="password" id="api-key" placeholder="请输入您的 API Key" value="1">
+            </div>
+
+            <div class="form-group">
+                <label for="prompt-input">提示词 (Prompt)</label>
+                <textarea id="prompt-input" rows="8" placeholder="输入您的图像描述..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="ratio-select">比例 (Ratio)</label>
+                <select id="ratio-select">
+                    <option value="1:1" selected>1:1 (方形)</option>
+                    <option value="3:2">3:2 (横屏)</option>
+                    <option value="2:3">2:3 (竖屏)</option>
+                </select>
+            </div>
+
+            <div class="form-group slider-group">
+                <div class="slider-label">
+                    <label for="count-slider">生成数量 (Count)</label>
+                    <span id="count-value">2</span>
+                </div>
+                <input type="range" id="count-slider" min="1" max="4" step="1" value="2">
+            </div>
+
+            <button id="generate-btn">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="icon"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" /></svg>
+                <span>生成图像</span>
+            </button>
+        </div>
+        <div class="main-content">
+            <div id="result-panel">
+                <div id="placeholder" class="placeholder">
+                    <p>请在左侧配置参数并开始生成</p>
+                </div>
+                <div id="spinner" class="spinner hidden"></div>
+                <div id="error-message" class="error hidden"></div>
+                <div id="image-grid"></div>
+            </div>
+        </div>
+    </div>
+    <script src="/static/script.js"></script>
+</body>
+</html>
+
+--- 文件路径: static\script.js ---
+
+document.addEventListener('DOMContentLoaded', () => {
+    const apiKeyInput = document.getElementById('api-key');
+    const ratioSelect = document.getElementById('ratio-select');
+    const promptInput = document.getElementById('prompt-input');
+    const generateBtn = document.getElementById('generate-btn');
+    const countSlider = document.getElementById('count-slider');
+    const countValue = document.getElementById('count-value');
+    const imageGrid = document.getElementById('image-grid');
+    const spinner = document.getElementById('spinner');
+    const errorMessage = document.getElementById('error-message');
+    const placeholder = document.getElementById('placeholder');
+
+    async function handleGenerate() {
+        const apiKey = apiKeyInput.value.trim();
+        const prompt = promptInput.value.trim();
+
+        if (!apiKey || !prompt) {
+            showError("请确保 API Key 和提示词都已填写。");
+            return;
+        }
+
+        setLoading(true);
+
+        // 注意：虽然我们在这里请求 b64_json，但后端已被修改为总是返回 b64_json
+        const payload = {
+            model: "nova-dalle3",
+            prompt: prompt,
+            n: parseInt(countSlider.value, 10),
+            size: ratioSelect.value,
+            response_format: "b64_json" 
+        };
+
+        try {
+            const response = await fetch('/v1/images/generations', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.detail || '生成失败，未知错误。');
+            }
+
+            if (result.data && result.data.length > 0) {
+                displayImages(result.data);
+            } else {
+                throw new Error('API 返回了成功状态，但没有图片数据。');
+            }
+        } catch (error) {
+            showError(error.message);
+        } finally {
+            setLoading(false);
+        }
+    }
+
+    function displayImages(data) {
+        imageGrid.innerHTML = '';
+        data.forEach(item => {
+            // --- 核心修改点 ---
+            // 检查 item.b64_json 而不是 item.url
+            if (item.b64_json) {
+                const imgContainer = document.createElement('div');
+                imgContainer.className = 'image-container';
+                const img = document.createElement('img');
+                // 使用 Data URL 格式来显示 Base64 图片
+                img.src = 'data:image/jpeg;base64,' + item.b64_json;
+                img.alt = 'Generated Image';
+                imgContainer.appendChild(img);
+                imageGrid.appendChild(imgContainer);
+            }
+        });
+    }
+
+    function setLoading(isLoading) {
+        generateBtn.disabled = isLoading;
+        spinner.classList.toggle('hidden', !isLoading);
+        placeholder.classList.toggle('hidden', isLoading || imageGrid.children.length > 0);
+        if (isLoading) {
+            imageGrid.innerHTML = '';
+            hideError();
+        }
+    }
+
+    function showError(message) {
+        errorMessage.textContent = `错误: ${message}`;
+        errorMessage.classList.remove('hidden');
+        imageGrid.innerHTML = '';
+        placeholder.classList.add('hidden');
+    }
+
+    function hideError() {
+        errorMessage.classList.add('hidden');
+    }
+
+    countSlider.addEventListener('input', () => countValue.textContent = countSlider.value);
+    generateBtn.addEventListener('click', handleGenerate);
+});
+
+--- 文件路径: static\style.css ---
+
+:root {
+    --bg-color: #f0f2f5;
+    --sidebar-bg: #ffffff;
+    --main-bg: #f7f7f8;
+    --preview-bg: #ffffff;
+    --border-color: #e5e7eb;
+    --text-color: #111827;
+    --text-secondary: #6b7280;
+    --primary-color: #4f46e5;
+    --primary-hover: #4338ca;
+    --input-bg: #f9fafb;
+    --error-color: #ef4444;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    margin: 0;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    font-size: 14px;
+    display: flex;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container { display: flex; width: 100%; height: 100%; }
+
+.sidebar {
+    width: 350px;
+    flex-shrink: 0;
+    background-color: var(--sidebar-bg);
+    border-right: 1px solid var(--border-color);
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+}
+
+.header { padding-bottom: 16px; margin-bottom: 24px; border-bottom: 1px solid var(--border-color); }
+.header h2 { margin: 0; }
+.header p { margin: 4px 0 0; color: var(--text-secondary); }
+
+.main-content {
+    flex-grow: 1;
+    background-color: var(--main-bg);
+    padding: 24px;
+    overflow-y: auto;
+}
+
+#result-panel {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+.form-group { margin-bottom: 20px; }
+label { display: block; font-weight: 500; margin-bottom: 8px; }
+
+input[type="password"], textarea, select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 14px;
+    background-color: var(--input-bg);
+    transition: border-color 0.2s;
+}
+textarea { resize: vertical; }
+input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+}
+
+.slider-group .slider-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.slider-group .slider-label span {
+    font-weight: 600;
+    color: var(--primary-color);
+}
+
+input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    background: #ddd;
+    border-radius: 5px;
+    outline: none;
+    margin-top: 8px;
+}
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    background: var(--primary-color);
+    cursor: pointer;
+    border-radius: 50%;
+}
+
+#generate-btn {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: auto;
+}
+#generate-btn:hover { background-color: var(--primary-hover); }
+#generate-btn:disabled { background-color: #9ca3af; cursor: not-allowed; }
+#generate-btn .icon { width: 20px; height: 20px; }
+
+.placeholder {
+    text-align: center;
+    color: var(--text-secondary);
+}
+
+#image-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(256px, 1fr));
+    gap: 16px;
+    width: 100%;
+}
+.image-container {
+    position: relative;
+    overflow: hidden;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    aspect-ratio: 1 / 1;
+}
+.image-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+.hidden { display: none; }
+
+.spinner {
+    border: 5px solid rgba(0, 0, 0, 0.1);
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    border-left-color: var(--primary-color);
+    animation: spin 1s ease infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.error {
+    color: #b91c1c;
+    background-color: #fee2e2;
+    border: 1px solid #fca5a5;
+    padding: 15px;
+    border-radius: 6px;
+    text-align: center;
+    max-width: 600px;
+}
+
+
